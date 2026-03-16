@@ -1,0 +1,852 @@
+{% extends "base.html" %}
+{% block title %}{{ info.title or manga }} — Your_Name{% endblock %}
+
+{% block extra_styles %}
+/* ══════════════════════════════════════
+   VARIABLES
+══════════════════════════════════════ */
+:root {
+  --glass-border: rgba(255,255,255,0.07);
+  --glass-bg:     rgba(12,12,18,0.9);
+  --red-glow:     rgba(232,32,58,0.18);
+}
+
+/* ══════════════════════════════════════
+   HERO — blurred cover backdrop
+══════════════════════════════════════ */
+.detail-hero {
+  position: relative;
+  min-height: 480px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.hero-backdrop {
+  position: absolute; inset: 0;
+  background-size: cover;
+  background-position: center 20%;
+  filter: blur(28px) brightness(0.3) saturate(1.5);
+  transform: scale(1.08);
+  z-index: 0;
+}
+.hero-backdrop-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(6,6,10,0.25) 0%,
+    rgba(6,6,10,0.55) 45%,
+    rgba(6,6,10,0.97) 100%
+  );
+  z-index: 1;
+}
+.hero-backdrop-overlay::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 80% at -10% 60%, rgba(232,32,58,0.15), transparent);
+  z-index: 2;
+}
+
+.hero-content {
+  position: relative; z-index: 3;
+  max-width: 1400px; margin: 0 auto; width: 100%;
+  padding: 3.5rem 2rem 2.5rem;
+  display: flex;
+  gap: 2.5rem;
+  align-items: flex-end;
+}
+
+/* ── Cover art ── */
+.hero-cover-wrap { flex-shrink: 0; position: relative; }
+.hero-cover {
+  width: 200px; aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid rgba(232,32,58,0.3);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(232,32,58,0.12);
+  display: block;
+}
+.hero-cover-placeholder {
+  width: 200px; aspect-ratio: 2/3;
+  background: linear-gradient(135deg, #1e0a0a 0%, #0f0a0a 100%);
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 4rem;
+}
+.cover-progress-pill {
+  position: absolute; bottom: -10px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 0.25rem 0.8rem;
+  font-size: 0.7rem; color: var(--red);
+  font-weight: 600; letter-spacing: 0.5px;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+/* ── Hero text ── */
+.hero-text { flex: 1; min-width: 0; }
+
+.hero-badges {
+  display: flex; gap: 0.45rem; flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+.hbadge {
+  font-size: 0.62rem; font-weight: 800;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 0.2rem 0.65rem; border-radius: 5px;
+}
+.hbadge-type     { background: rgba(232,32,58,0.18); color: var(--red);   border: 1px solid rgba(232,32,58,0.28); }
+.hbadge-year     { background: rgba(255,255,255,0.07); color: var(--muted); border: 1px solid var(--glass-border); }
+.hbadge-reading  { background: rgba(232,32,58,0.15);  color: var(--red);   border: 1px solid rgba(232,32,58,0.25); }
+.hbadge-completed{ background: rgba(245,200,66,0.15); color: var(--gold);  border: 1px solid rgba(245,200,66,0.25); }
+.hbadge-plan     { background: rgba(107,107,136,0.18);color: var(--muted); border: 1px solid var(--glass-border); }
+.hbadge-ongoing  { background: rgba(34,197,94,0.15);  color: #4ade80;      border: 1px solid rgba(34,197,94,0.25); }
+.hbadge-finished { background: rgba(245,200,66,0.15); color: var(--gold);  border: 1px solid rgba(245,200,66,0.25); }
+.hbadge-other    { background: rgba(107,107,136,0.18);color: var(--muted); border: 1px solid var(--glass-border); }
+
+.hero-title {
+  font-family: var(--font-head);
+  font-size: 3rem; letter-spacing: 3px; line-height: 1.05;
+  color: var(--text); margin-bottom: 0.35rem;
+}
+.hero-subtitle {
+  font-size: 0.85rem; color: var(--muted);
+  margin-bottom: 1.1rem; letter-spacing: 0.5px;
+}
+
+.genre-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
+.genre-pill {
+  font-size: 0.72rem; font-weight: 500;
+  padding: 0.28rem 0.75rem; border-radius: 20px;
+  background: rgba(232,32,58,0.1);
+  color: var(--accent);
+  border: 1px solid rgba(232,32,58,0.2);
+  letter-spacing: 0.3px;
+}
+
+/* Quick stats */
+.hero-stats { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.6rem; }
+.hstat { text-align: center; }
+.hstat-val {
+  font-family: var(--font-head); font-size: 1.8rem;
+  color: var(--red); line-height: 1;
+}
+.hstat-label {
+  font-size: 0.65rem; color: var(--muted);
+  letter-spacing: 1.5px; text-transform: uppercase; margin-top: 0.15rem;
+}
+
+/* CTA buttons */
+.hero-actions { display: flex; gap: 0.65rem; flex-wrap: wrap; }
+.btn-read {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  background: var(--red); color: #fff;
+  font-family: var(--font-body); font-size: 0.88rem; font-weight: 700;
+  padding: 0.65rem 1.5rem; border-radius: 10px;
+  text-decoration: none; letter-spacing: 0.5px;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 4px 20px rgba(232,32,58,0.35);
+  border: none; cursor: pointer;
+}
+.btn-read:hover {
+  background: #c41830; transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(232,32,58,0.45);
+}
+.btn-outline-red {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  background: rgba(232,32,58,0.1); color: var(--accent);
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 600;
+  padding: 0.63rem 1.25rem; border-radius: 10px;
+  text-decoration: none; border: 1px solid rgba(232,32,58,0.3);
+  transition: all 0.2s; cursor: pointer;
+}
+.btn-outline-red:hover { background: rgba(232,32,58,0.18); border-color: var(--red-dim); }
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  background: rgba(255,255,255,0.05); color: var(--muted);
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 500;
+  padding: 0.63rem 1.2rem; border-radius: 10px;
+  text-decoration: none; border: 1px solid var(--glass-border);
+  transition: all 0.2s;
+}
+.btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+
+/* ══════════════════════════════════════
+   BODY
+══════════════════════════════════════ */
+.detail-body {
+  max-width: 1400px; margin: 0 auto;
+  padding: 2.5rem 2rem 4rem;
+  display: grid;
+  grid-template-columns: 1fr 330px;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+/* Section heading */
+.det-section-title {
+  font-family: var(--font-head);
+  font-size: 1.3rem; letter-spacing: 2px; color: var(--text);
+  margin-bottom: 1.1rem;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.det-section-title::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--glass-border), transparent);
+}
+
+/* Description card */
+.desc-card {
+  background: #0f0f16; border: 1px solid var(--glass-border);
+  border-radius: 14px; padding: 1.5rem 1.75rem;
+  margin-bottom: 2rem; position: relative; overflow: hidden;
+}
+.desc-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; bottom: 0; width: 3px;
+  background: linear-gradient(180deg, var(--red), transparent);
+  border-radius: 3px 0 0 3px;
+}
+.desc-text {
+  font-size: 0.88rem; color: #c8c8e0;
+  line-height: 1.78; white-space: pre-wrap;
+}
+.desc-text.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.desc-toggle {
+  background: none; border: none; color: var(--red);
+  font-family: var(--font-body); font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; padding: 0.5rem 0 0; display: block;
+  letter-spacing: 0.3px; transition: color 0.2s;
+}
+.desc-toggle:hover { color: var(--accent); }
+
+/* Reading list selector */
+.list-selector-wrap { margin-bottom: 2rem; }
+.list-select {
+  width: 100%; padding: 0.65rem 1rem;
+  background: #0f0f16; border: 1px solid var(--glass-border);
+  border-radius: 10px; color: var(--text);
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 500;
+  cursor: pointer; outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6b88' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  padding-right: 2.2rem;
+}
+.list-select:focus { border-color: var(--red-dim); background-color: rgba(232,32,58,0.04); }
+.list-select option { background: #0f0f16; }
+
+/* ── Chapter filter bar ── */
+.ch-filter-bar {
+  display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;
+}
+.ch-filter-input {
+  flex: 1; min-width: 150px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 9px; color: var(--text);
+  font-family: var(--font-body); font-size: 0.8rem;
+  padding: 0.48rem 0.85rem; outline: none;
+  transition: border-color 0.2s;
+}
+.ch-filter-input:focus { border-color: var(--red-dim); }
+.ch-filter-input::placeholder { color: var(--muted); }
+
+.ch-filter-btn {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--glass-border); color: var(--muted);
+  font-family: var(--font-body); font-size: 0.75rem; font-weight: 600;
+  padding: 0.48rem 0.9rem; border-radius: 9px;
+  cursor: pointer; transition: all 0.18s;
+  letter-spacing: 0.3px; white-space: nowrap;
+}
+.ch-filter-btn.active,
+.ch-filter-btn:hover {
+  border-color: var(--red-dim); color: var(--red);
+  background: rgba(232,32,58,0.08);
+}
+
+/* ── Chapter row ── */
+.ch-row {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.75rem 1.1rem;
+  background: #0f0f16; border: 1px solid var(--glass-border);
+  border-radius: 11px; margin-bottom: 0.4rem;
+  text-decoration: none; color: var(--text);
+  transition: border-color 0.18s, background 0.18s, transform 0.15s;
+  position: relative; overflow: hidden;
+}
+.ch-row:hover {
+  border-color: rgba(232,32,58,0.35);
+  background: rgba(232,32,58,0.05);
+  transform: translateX(3px);
+}
+.ch-row.read     { opacity: 0.5; }
+.ch-row.read:hover { opacity: 0.8; }
+.ch-row.in-progress { border-left: 3px solid var(--red); }
+.ch-row.current-ch  { border-color: var(--red-dim); background: rgba(232,32,58,0.08); }
+.ch-row.extra-ch    { opacity: 0.75; }
+
+.ch-row-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  background: rgba(255,255,255,0.04);
+}
+.ch-row-bar-fill { height: 100%; background: var(--red); border-radius: 0 2px 2px 0; }
+
+/* Number box */
+.ch-num {
+  font-family: var(--font-head); font-size: 1rem;
+  color: var(--muted); min-width: 38px; text-align: center; flex-shrink: 0;
+}
+.ch-row.current-ch .ch-num { color: var(--red); }
+
+.ch-info { flex: 1; min-width: 0; }
+.ch-label {
+  font-size: 0.86rem; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ch-row.current-ch .ch-label { color: var(--accent); }
+
+.ch-sub {
+  display: flex; gap: 0.4rem; align-items: center;
+  margin-top: 0.2rem; flex-wrap: wrap;
+}
+.ch-pages { font-size: 0.68rem; color: var(--muted); }
+
+/* Chapter badges */
+.ch-badge {
+  font-size: 0.55rem; font-weight: 800;
+  letter-spacing: 0.6px; text-transform: uppercase;
+  padding: 0.1rem 0.38rem; border-radius: 4px; line-height: 1.6;
+}
+.ch-badge-read    { background: rgba(232,32,58,0.14); color: var(--red);   border: 1px solid rgba(232,32,58,0.2); }
+.ch-badge-prog    { background: rgba(232,32,58,0.1);  color: var(--accent);border: 1px solid rgba(232,32,58,0.15); }
+.ch-badge-current { background: rgba(34,197,94,0.15); color: #4ade80;      border: 1px solid rgba(34,197,94,0.25); }
+.ch-badge-extra   { background: rgba(107,107,136,0.18); color: var(--muted); border: 1px solid var(--glass-border); }
+
+.ch-action {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(232,32,58,0.1); border: 1px solid rgba(232,32,58,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; transition: all 0.18s; color: var(--red);
+}
+.ch-row:hover .ch-action { background: rgba(232,32,58,0.22); border-color: var(--red-dim); }
+
+/* ══════════════════════════════════════
+   RIGHT SIDEBAR
+══════════════════════════════════════ */
+.detail-sidebar { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.info-card {
+  background: #0f0f16; border: 1px solid var(--glass-border);
+  border-radius: 14px; padding: 1.25rem 1.4rem;
+  position: relative; overflow: hidden;
+}
+.info-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--red-dim), transparent);
+  opacity: 0.4;
+}
+.info-card-title {
+  font-family: var(--font-head); font-size: 0.95rem;
+  letter-spacing: 2px; color: var(--muted); text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+/* Metadata rows */
+.meta-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  gap: 0.75rem;
+}
+.meta-row:last-child { border-bottom: none; }
+.meta-key { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; flex-shrink: 0; }
+.meta-val { font-size: 0.82rem; color: var(--text); font-weight: 500; text-align: right; }
+.meta-val-red { color: var(--accent); }
+
+.rating-display { display: flex; align-items: baseline; gap: 0.3rem; justify-content: flex-end; }
+.rating-big { font-family: var(--font-head); font-size: 1.5rem; color: var(--gold); line-height: 1; }
+.rating-max { font-size: 0.7rem; color: var(--muted); }
+
+/* Progress stats grid */
+.progress-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.pstat {
+  background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border);
+  border-radius: 10px; padding: 0.8rem 0.9rem; text-align: center;
+}
+.pstat-val { font-family: var(--font-head); font-size: 1.6rem; color: var(--red); line-height: 1; }
+.pstat-label { font-size: 0.62rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 0.2rem; }
+
+.overall-bar-wrap { margin-top: 0.9rem; }
+.overall-bar-label { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem; }
+.overall-bar { height: 6px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
+.overall-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--red-dim), var(--red));
+  border-radius: 3px; transition: width 0.6s ease;
+}
+
+/* ══════════════════════════════════════
+   MOBILE
+══════════════════════════════════════ */
+@media (max-width: 900px) {
+  .detail-body { grid-template-columns: 1fr; padding: 1.5rem 1rem 3rem; gap: 1.75rem; }
+  .detail-sidebar { order: -1; }
+  .progress-stats { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .hero-content {
+    flex-direction: column; align-items: flex-start;
+    padding: 2rem 1rem; gap: 1.5rem;
+  }
+  .detail-hero { min-height: 0; }
+  .hero-cover, .hero-cover-placeholder { width: 140px; }
+  .hero-title { font-size: 2rem; letter-spacing: 2px; }
+  .hero-stats { gap: 1rem; }
+  .hstat-val  { font-size: 1.5rem; }
+  .hero-actions { flex-wrap: wrap; }
+  .btn-read { font-size: 0.82rem; padding: 0.58rem 1.2rem; }
+  .progress-stats { grid-template-columns: repeat(2, 1fr); }
+  .ch-row { padding: 0.65rem 0.85rem; gap: 0.75rem; }
+  .ch-num { font-size: 0.9rem; min-width: 28px; }
+  .ch-label { font-size: 0.8rem; }
+  .ch-action { width: 30px; height: 30px; font-size: 0.75rem; }
+  .desc-card { padding: 1.1rem 1.2rem; }
+  .info-card  { padding: 1rem 1.1rem; }
+}
+
+@media (max-width: 420px) {
+  .hero-title { font-size: 1.65rem; }
+  .detail-body { padding: 1.2rem 0.85rem 3rem; }
+}
+{% endblock %}
+
+{% block content %}
+
+{# ── Helpers ── #}
+{% set total_chs  = chapters|length %}
+{% set read_pct   = ((read_count / total_chs) * 100)|int if total_chs else 0 %}
+{% set info_title = info.title or manga %}
+{% set extras     = chapters|selectattr('is_extra')|list|length %}
+{% set normal_chs = total_chs - extras %}
+
+<!-- ══════════════════ HERO ══════════════════ -->
+<div class="detail-hero">
+  {% if cover %}
+  <div class="hero-backdrop" style="background-image:url('{{ cover }}')"></div>
+  {% else %}
+  <div class="hero-backdrop" style="background:linear-gradient(135deg,#2e0a0a,#0f0a0a)"></div>
+  {% endif %}
+  <div class="hero-backdrop-overlay"></div>
+
+  <div class="hero-content">
+    <!-- Cover -->
+    <div class="hero-cover-wrap">
+      {% if cover %}
+      <img class="hero-cover" src="{{ cover }}" alt="{{ info_title }}">
+      {% else %}
+      <div class="hero-cover-placeholder">📚</div>
+      {% endif %}
+      {% if read_pct > 0 %}
+      <div class="cover-progress-pill">{{ read_pct }}% read</div>
+      {% endif %}
+    </div>
+
+    <!-- Text -->
+    <div class="hero-text">
+      <!-- Top badges -->
+      <div class="hero-badges">
+        {% if info.type %}
+        <span class="hbadge hbadge-type">{{ info.type }}</span>
+        {% else %}
+        <span class="hbadge hbadge-type">Manga</span>
+        {% endif %}
+        {% if info.year %}
+        <span class="hbadge hbadge-year">{{ info.year }}</span>
+        {% endif %}
+        {% if info.status %}
+          {% set s = info.status|lower %}
+          {% if 'ongoing' in s or 'publishing' in s %}
+          <span class="hbadge hbadge-ongoing">{{ info.status }}</span>
+          {% elif 'finish' in s or 'complet' in s %}
+          <span class="hbadge hbadge-finished">{{ info.status }}</span>
+          {% else %}
+          <span class="hbadge hbadge-other">{{ info.status }}</span>
+          {% endif %}
+        {% endif %}
+        {% if status %}
+          {% if status == 'reading' %}
+          <span class="hbadge hbadge-reading">📖 Reading</span>
+          {% elif status == 'completed' %}
+          <span class="hbadge hbadge-completed">✅ Completed</span>
+          {% elif status == 'plan' %}
+          <span class="hbadge hbadge-plan">📋 Plan to read</span>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      <h1 class="hero-title">{{ info_title }}</h1>
+      <div class="hero-subtitle">
+        {% if info.author %}{{ info.author }}{% endif %}
+        {% if info.author and info.artist and info.author != info.artist %} · Art by {{ info.artist }}{% endif %}
+        {% if info.publisher %} · {{ info.publisher }}{% endif %}
+      </div>
+
+      <!-- Genres -->
+      {% if info.genre_list %}
+      <div class="genre-row">
+        {% for g in info.genre_list %}<span class="genre-pill">{{ g }}</span>{% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Stats -->
+      <div class="hero-stats">
+        <div class="hstat">
+          <div class="hstat-val">{{ normal_chs }}</div>
+          <div class="hstat-label">Chapters</div>
+        </div>
+        {% if extras > 0 %}
+        <div class="hstat">
+          <div class="hstat-val">{{ extras }}</div>
+          <div class="hstat-label">Extras</div>
+        </div>
+        {% endif %}
+        {% if info.rating %}
+        <div class="hstat">
+          <div class="hstat-val">{{ info.rating }}</div>
+          <div class="hstat-label">Rating</div>
+        </div>
+        {% endif %}
+        {% if read_count > 0 %}
+        <div class="hstat">
+          <div class="hstat-val">{{ read_count }}</div>
+          <div class="hstat-label">Read</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Action buttons -->
+      <div class="hero-actions">
+        {% if last %}
+        <a class="btn-read"
+           href="{{ url_for('reader', manga=manga, chapter=last.chapter) }}">
+          ▶ Continue — {{ last.chapter }}
+        </a>
+        {% elif chapters %}
+        <a class="btn-read"
+           href="{{ url_for('reader', manga=manga, chapter=chapters[0].name) }}">
+          ▶ Start Reading
+        </a>
+        {% endif %}
+        <a class="btn-ghost" href="{{ url_for('index') }}">← Library</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ BODY ══════════════════ -->
+<div class="detail-body">
+
+  <!-- ── LEFT: Description + Chapters ── -->
+  <div class="detail-main">
+
+    <!-- Description -->
+    {% if info.description %}
+    <div class="desc-card">
+      <p class="desc-text{% if info.description|length > 400 %} collapsed{% endif %}"
+         id="descText">{{ info.description }}</p>
+      {% if info.description|length > 400 %}
+      <button class="desc-toggle" id="descToggle" onclick="toggleDesc()">Show more ↓</button>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Reading list dropdown -->
+    <div class="list-selector-wrap">
+      <select class="list-select" id="statusSelect" data-manga="{{ manga }}" onchange="updateStatus(this)">
+        <option value="">＋ Add to reading list…</option>
+        <option value="reading"   {% if status == 'reading'   %}selected{% endif %}>📖 Reading</option>
+        <option value="completed" {% if status == 'completed' %}selected{% endif %}>✅ Completed</option>
+        <option value="plan"      {% if status == 'plan'      %}selected{% endif %}>📋 Plan to read</option>
+        <option value="remove"    {% if status              %}selected{% endif %}>🗑 Remove from list</option>
+      </select>
+    </div>
+
+    <!-- Chapter list -->
+    <div class="ch-section">
+      <div class="det-section-title">
+        Chapters
+        <span style="font-family:var(--font-body);font-size:0.75rem;color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none;">
+          {{ normal_chs }}{% if extras %} + {{ extras }} extras{% endif %}
+        </span>
+      </div>
+
+      <div class="ch-filter-bar">
+        <input class="ch-filter-input" type="text" id="chSearch"
+               placeholder="Search chapters…" oninput="filterChs()" autocomplete="off">
+        <button class="ch-filter-btn active" id="btnAll"      onclick="setCf('all')">All</button>
+        <button class="ch-filter-btn"        id="btnUnread"   onclick="setCf('unread')">Unread</button>
+        <button class="ch-filter-btn"        id="btnInProg"   onclick="setCf('inprog')">In Progress</button>
+        {% if extras > 0 %}
+        <button class="ch-filter-btn"        id="btnExtras"   onclick="setCf('extras')">Extras</button>
+        {% endif %}
+      </div>
+
+      <div id="chList">
+        {% for ch in chapters %}
+        {% set is_current = (last and last.chapter == ch.name) %}
+        {% set pct = ch.pct %}
+        <a class="ch-row
+                  {% if pct >= 95 %}read{% endif %}
+                  {% if pct > 3 and pct < 95 %}in-progress{% endif %}
+                  {% if is_current %}current-ch{% endif %}
+                  {% if ch.is_extra %}extra-ch{% endif %}"
+           href="{{ url_for('reader', manga=manga, chapter=ch.name) }}"
+           data-label="{{ ch.name|lower }}"
+           data-extra="{{ 'true' if ch.is_extra else 'false' }}"
+           data-read="{{ 'true' if pct >= 95 else 'false' }}"
+           data-inprog="{{ 'true' if pct > 3 and pct < 95 else 'false' }}">
+
+          <div class="ch-num">{{ loop.index }}</div>
+
+          <div class="ch-info">
+            <div class="ch-label">{{ ch.name }}</div>
+            <div class="ch-sub">
+              <span class="ch-pages">{{ ch.pages }} pages</span>
+              {% if ch.is_extra %}
+              <span class="ch-badge ch-badge-extra">Extra</span>
+              {% endif %}
+              {% if pct >= 95 %}
+              <span class="ch-badge ch-badge-read">✓ Read</span>
+              {% elif pct > 3 %}
+              <span class="ch-badge ch-badge-prog">{{ pct }}%</span>
+              {% endif %}
+              {% if is_current %}
+              <span class="ch-badge ch-badge-current">▶ In Progress</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="ch-action">▶</div>
+
+          {% if pct > 0 %}
+          <div class="ch-row-bar">
+            <div class="ch-row-bar-fill" style="width:{{ pct }}%"></div>
+          </div>
+          {% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT SIDEBAR ── -->
+  <aside class="detail-sidebar">
+
+    <!-- Progress card -->
+    {% if total_chs > 0 %}
+    <div class="info-card">
+      <div class="info-card-title">Your Progress</div>
+      <div class="progress-stats">
+        <div class="pstat">
+          <div class="pstat-val">{{ read_count }}</div>
+          <div class="pstat-label">Read</div>
+        </div>
+        <div class="pstat">
+          <div class="pstat-val">{{ in_progress }}</div>
+          <div class="pstat-label">In Progress</div>
+        </div>
+        <div class="pstat">
+          <div class="pstat-val">{{ total_chs - read_count }}</div>
+          <div class="pstat-label">Remaining</div>
+        </div>
+        <div class="pstat">
+          <div class="pstat-val">{{ total_pages }}</div>
+          <div class="pstat-label">Pages</div>
+        </div>
+      </div>
+      <div class="overall-bar-wrap">
+        <div class="overall-bar-label">
+          <span>Overall</span><span>{{ read_pct }}%</span>
+        </div>
+        <div class="overall-bar">
+          <div class="overall-bar-fill" style="width:{{ read_pct }}%"></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Info / metadata card -->
+    {% if info %}
+    <div class="info-card">
+      <div class="info-card-title">Details</div>
+
+      {% if info.rating %}
+      <div class="meta-row">
+        <span class="meta-key">Rating</span>
+        <div class="rating-display">
+          <span class="rating-big">{{ info.rating }}</span>
+          <span class="rating-max">/ 10</span>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if info.author %}
+      <div class="meta-row">
+        <span class="meta-key">Author</span>
+        <span class="meta-val">{{ info.author }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.artist and info.artist != info.author %}
+      <div class="meta-row">
+        <span class="meta-key">Artist</span>
+        <span class="meta-val">{{ info.artist }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.publisher %}
+      <div class="meta-row">
+        <span class="meta-key">Publisher</span>
+        <span class="meta-val">{{ info.publisher }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.year %}
+      <div class="meta-row">
+        <span class="meta-key">Year</span>
+        <span class="meta-val">{{ info.year }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.status %}
+      <div class="meta-row">
+        <span class="meta-key">Status</span>
+        <span class="meta-val meta-val-red">{{ info.status }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.type %}
+      <div class="meta-row">
+        <span class="meta-key">Type</span>
+        <span class="meta-val">{{ info.type }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.volumes %}
+      <div class="meta-row">
+        <span class="meta-key">Volumes</span>
+        <span class="meta-val">{{ info.volumes }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.demographic %}
+      <div class="meta-row">
+        <span class="meta-key">Demographic</span>
+        <span class="meta-val">{{ info.demographic }}</span>
+      </div>
+      {% endif %}
+
+      {% if info.source %}
+      <div class="meta-row">
+        <span class="meta-key">Source</span>
+        <span class="meta-val">{{ info.source }}</span>
+      </div>
+      {% endif %}
+
+      <div class="meta-row">
+        <span class="meta-key">Chapters</span>
+        <span class="meta-val meta-val-red">{{ normal_chs }}{% if extras %} + {{ extras }}{% endif %}</span>
+      </div>
+
+      {% if info.genre_list %}
+      <div class="meta-row" style="align-items:flex-start">
+        <span class="meta-key">Genres</span>
+        <div style="display:flex;gap:0.3rem;flex-wrap:wrap;justify-content:flex-end;max-width:58%">
+          {% for g in info.genre_list %}
+          <span class="genre-pill" style="font-size:0.65rem;padding:0.2rem 0.55rem">{{ g }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </aside>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Description toggle ────────────────────────────────────────────────────
+function toggleDesc() {
+  const el  = document.getElementById('descText');
+  const btn = document.getElementById('descToggle');
+  if (el.classList.contains('collapsed')) {
+    el.classList.remove('collapsed');
+    btn.textContent = 'Show less ↑';
+  } else {
+    el.classList.add('collapsed');
+    btn.textContent = 'Show more ↓';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// ── Chapter filter ────────────────────────────────────────────────────────
+let activeCf = 'all';
+
+function setCf(f) {
+  activeCf = f;
+  document.querySelectorAll('.ch-filter-btn').forEach(b => b.classList.remove('active'));
+  const map = { all: 'btnAll', unread: 'btnUnread', inprog: 'btnInProg', extras: 'btnExtras' };
+  const btn = document.getElementById(map[f]);
+  if (btn) btn.classList.add('active');
+  filterChs();
+}
+
+function filterChs() {
+  const q = (document.getElementById('chSearch').value || '').toLowerCase().trim();
+  document.querySelectorAll('#chList .ch-row').forEach(row => {
+    const label  = row.dataset.label || '';
+    const extra  = row.dataset.extra  === 'true';
+    const read   = row.dataset.read   === 'true';
+    const inprog = row.dataset.inprog === 'true';
+
+    let show = true;
+    if (activeCf === 'unread' && read)   show = false;
+    if (activeCf === 'inprog' && !inprog) show = false;
+    if (activeCf === 'extras' && !extra) show = false;
+    if (q && !label.includes(q))         show = false;
+
+    row.style.display = show ? '' : 'none';
+  });
+}
+
+// ── Reading list status ───────────────────────────────────────────────────
+function updateStatus(sel) {
+  const manga  = sel.dataset.manga;
+  const status = sel.value;
+  if (!status) return;
+  fetch('/api/reading-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ manga, status })
+  }).then(() => {
+    if (status === 'remove') sel.value = '';
+  });
+}
+</script>
+{% endblock %}

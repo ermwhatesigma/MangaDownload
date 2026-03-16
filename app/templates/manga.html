@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}{{ manga }} — Your_Name{% endblock %}
+
+{% block extra_styles %}
+.manga-hero {
+  display: flex; gap: 2.5rem;
+  padding: 2.5rem 2rem;
+  max-width: 1400px; margin: 0 auto;
+  align-items: flex-start;
+}
+.manga-cover-wrap {
+  flex: 0 0 200px;
+}
+.manga-cover {
+  width: 200px; aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: block;
+}
+.manga-cover-placeholder {
+  width: 200px; aspect-ratio: 2/3;
+  background: var(--surface);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 4rem; color: var(--border);
+}
+.manga-info { flex: 1; }
+.manga-info h1 {
+  font-family: var(--font-head);
+  font-size: 2.5rem; letter-spacing: 2px;
+  color: var(--text); line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+.manga-meta {
+  color: var(--muted); font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+.manga-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-family: var(--font-body); font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; border: none; text-decoration: none;
+  transition: all 0.2s;
+}
+.btn-primary {
+  background: var(--red); color: white;
+}
+.btn-primary:hover { background: #c41830; }
+.btn-outline {
+  background: none; border: 1px solid var(--border);
+  color: var(--text);
+}
+.btn-outline:hover { border-color: var(--red-dim); background: rgba(232,32,58,0.06); }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
+
+/* Status dropdown */
+.status-select {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--font-body);
+  font-size: 0.85rem; font-weight: 600;
+  padding: 0.6rem 1rem;
+  border-radius: 8px; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.status-select:focus { outline: none; border-color: var(--red-dim); }
+
+/* Chapters list */
+.chapters-wrap { max-width: 1400px; margin: 0 auto; padding: 0 2rem 3rem; }
+.chapter-item {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, background 0.2s;
+}
+.chapter-item:hover {
+  border-color: var(--red-dim);
+  background: rgba(232,32,58,0.04);
+}
+.chapter-item.read { opacity: 0.6; }
+.ch-name { font-weight: 600; font-size: 0.9rem; flex: 1; }
+.ch-meta { font-size: 0.78rem; color: var(--muted); flex-shrink: 0; }
+.ch-progress-bar {
+  width: 80px; height: 4px;
+  background: var(--border); border-radius: 2px; flex-shrink: 0;
+}
+.ch-progress-fill { height: 100%; background: var(--red); border-radius: 2px; }
+.ch-badge {
+  flex-shrink: 0;
+  font-size: 0.7rem; font-weight: 600;
+  color: var(--red); background: rgba(232,32,58,0.12);
+  padding: 0.15rem 0.5rem; border-radius: 20px;
+}
+{% endblock %}
+
+{% block content %}
+<div class="manga-hero">
+  <div class="manga-cover-wrap">
+    {% if cover %}
+    <img class="manga-cover" src="{{ cover }}" alt="{{ manga }}">
+    {% else %}
+    <div class="manga-cover-placeholder">📚</div>
+    {% endif %}
+  </div>
+  <div class="manga-info">
+    <h1>{{ manga }}</h1>
+    <div class="manga-meta">{{ chapters|length }} chapters in library</div>
+    <div class="manga-actions">
+      {% if last %}
+      <a class="btn btn-primary" href="{{ url_for('reader', manga=manga, chapter=last.chapter) }}">
+        ▶ Continue — {{ last.chapter }}
+      </a>
+      {% elif chapters %}
+      <a class="btn btn-primary" href="{{ url_for('reader', manga=manga, chapter=chapters[0].name) }}">
+        ▶ Start Reading
+      </a>
+      {% endif %}
+
+      <select class="status-select" id="statusSelect" data-manga="{{ manga }}">
+        <option value="">Add to list…</option>
+        <option value="reading"   {% if status == 'reading' %}selected{% endif %}>📖 Reading</option>
+        <option value="completed" {% if status == 'completed' %}selected{% endif %}>✅ Completed</option>
+        <option value="plan"      {% if status == 'plan' %}selected{% endif %}>📋 Plan to read</option>
+        <option value="remove"    {% if status %}selected{% endif %}>🗑 Remove</option>
+      </select>
+
+      <a class="btn btn-outline" href="{{ url_for('index') }}">← Library</a>
+    </div>
+  </div>
+</div>
+
+<div class="chapters-wrap">
+  <div class="section-title">Chapters</div>
+  {% for ch in chapters %}
+  {% set pct = ((ch.progress.page / (ch.progress.total_pages or 1)) * 100)|int if ch.progress else 0 %}
+  <a class="chapter-item {% if pct >= 95 %}read{% endif %}"
+     href="{{ url_for('reader', manga=manga, chapter=ch.name) }}">
+    <div class="ch-name">{{ ch.name }}</div>
+    <div class="ch-meta">{{ ch.pages }} pages</div>
+    {% if ch.progress %}
+    <div class="ch-progress-bar">
+      <div class="ch-progress-fill" style="width:{{ pct }}%"></div>
+    </div>
+    <div class="ch-meta">p.{{ ch.progress.page }}/{{ ch.progress.total_pages }}</div>
+    {% endif %}
+    {% if pct >= 95 %}
+    <div class="ch-badge">READ</div>
+    {% elif pct > 0 %}
+    <div class="ch-badge">{{ pct }}%</div>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('statusSelect').addEventListener('change', function() {
+  const manga  = this.dataset.manga;
+  const status = this.value;
+  if (!status) return;
+  fetch('/api/reading-list', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({manga, status})
+  }).then(() => {
+    if (status === 'remove') this.value = '';
+  });
+});
+</script>
+{% endblock %}

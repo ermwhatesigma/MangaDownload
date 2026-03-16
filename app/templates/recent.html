@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Recently Read — Your_Name{% endblock %}
+
+{% block extra_styles %}
+.recent-wrap { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+
+.recent-item {
+  display: flex; align-items: center; gap: 1.25rem;
+  padding: 0.9rem 1.25rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+  transition: border-color 0.2s, background 0.2s;
+}
+.recent-item:hover { border-color: var(--red-dim); background: rgba(232,32,58,0.04); }
+.recent-cover {
+  width: 44px; height: 62px;
+  object-fit: cover; border-radius: 5px;
+  flex-shrink: 0; background: var(--surface);
+}
+.recent-cover-ph {
+  width: 44px; height: 62px;
+  background: var(--surface); border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; flex-shrink: 0;
+}
+.recent-info { flex: 1; min-width: 0; }
+.recent-title {
+  font-weight: 600; font-size: 0.9rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.recent-sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+.recent-time { font-size: 0.72rem; color: var(--border); margin-top: 0.15rem; }
+.recent-action {
+  flex-shrink: 0;
+  background: var(--red); color: white;
+  border: none; border-radius: 7px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem; font-weight: 600;
+  text-decoration: none; font-family: var(--font-body);
+  transition: background 0.2s;
+}
+.recent-action:hover { background: #c41830; }
+
+.date-divider {
+  font-size: 0.72rem; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase;
+  margin: 1.25rem 0 0.6rem;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.date-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.progress-mini {
+  width: 60px; height: 3px; background: var(--border);
+  border-radius: 2px; flex-shrink: 0;
+}
+.progress-mini-fill { height: 100%; background: var(--red); border-radius: 2px; }
+
+.empty {
+  text-align: center; padding: 4rem 0; color: var(--muted);
+}
+.empty big {
+  display: block; font-family: var(--font-head);
+  font-size: 3rem; color: var(--border); margin-bottom: 0.5rem;
+}
+{% endblock %}
+
+{% block content %}
+<div class="recent-wrap">
+  <div class="section-title" style="margin-bottom:2rem;">Recently Read</div>
+
+  {% if not items %}
+  <div class="empty">
+    <big>🕰</big>
+    Nothing read yet. <a href="{{ url_for('index') }}" style="color:var(--red)">Start reading!</a>
+  </div>
+  {% endif %}
+
+  {% set ns = namespace(last_date='') %}
+  {% for item in items %}
+    {% set item_date = item.read_at[:10] if item.read_at else '' %}
+    {% if item_date != ns.last_date %}
+      {% set ns.last_date = item_date %}
+      <div class="date-divider">
+        {% if item_date == today %}Today
+        {% else %}{{ item_date }}{% endif %}
+      </div>
+    {% endif %}
+    {% set pct = ((item.page / (item.total_pages or 1)) * 100)|int if item.page and item.total_pages else 0 %}
+    <div class="recent-item">
+      {% if item.cover %}
+      <img class="recent-cover" src="{{ item.cover }}" loading="lazy" alt="{{ item.manga }}">
+      {% else %}
+      <div class="recent-cover-ph">📖</div>
+      {% endif %}
+      <div class="recent-info">
+        <div class="recent-title">{{ item.manga }}</div>
+        <div class="recent-sub">
+          {{ item.chapter }}
+          {% if item.page %} · Page {{ item.page }}{% if item.total_pages %}/{{ item.total_pages }}{% endif %}{% endif %}
+        </div>
+        <div class="recent-time">
+          {% if item.read_at %}{{ item.read_at[11:16] }}{% endif %}
+        </div>
+      </div>
+      {% if pct > 0 %}
+      <div class="progress-mini">
+        <div class="progress-mini-fill" style="width:{{pct}}%"></div>
+      </div>
+      {% endif %}
+      <a class="recent-action"
+         href="{{ url_for('reader', manga=item.manga, chapter=item.chapter) }}">
+        ▶ Read
+      </a>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

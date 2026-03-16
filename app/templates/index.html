@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Home — Your_Name{% endblock %}
+
+{% block extra_styles %}
+.hero {
+  background: linear-gradient(180deg, rgba(232,32,58,0.06) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 2.5rem 2rem 2rem;
+}
+.hero-inner {
+  max-width: 1400px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap;
+}
+.hero-title {
+  font-family: var(--font-head);
+  font-size: 2.6rem;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+.hero-title span { color: var(--red); }
+.hero-sub { color: var(--muted); font-size: 0.85rem; margin-top: 0.4rem; }
+.hero-stats { display: flex; gap: 2rem; }
+.stat-val {
+  font-family: var(--font-head); font-size: 2rem;
+  color: var(--red); line-height: 1;
+}
+.stat-label { font-size: 0.72rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+.section { margin-bottom: 3rem; }
+
+/* No results */
+.empty {
+  text-align: center; padding: 4rem 0;
+  color: var(--muted); font-size: 0.9rem;
+}
+.empty big {
+  display: block; font-family: var(--font-head);
+  font-size: 3rem; color: var(--border); margin-bottom: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .hero { padding: 1.5rem 0.85rem 1.25rem; }
+  .hero-title { font-size: 1.8rem; letter-spacing: 2px; }
+  .hero-sub { font-size: 0.78rem; }
+  .hero-stats { gap: 1.25rem; }
+  .stat-val { font-size: 1.5rem; }
+  .stat-label { font-size: 0.68rem; }
+  .section { margin-bottom: 2rem; }
+}
+{% endblock %}
+
+{% block content %}
+
+{# ── Card macros must be defined BEFORE they are called in Jinja2 ── #}
+{% macro manga_card(m) %}
+<a class="manga-card" href="{{ url_for('manga_detail', manga=m.name) }}">
+  {% if m.cover %}
+  <img class="manga-card-img" src="{{ m.cover }}" loading="lazy" alt="{{ m.name }}">
+  {% else %}
+  <div class="manga-card-img-placeholder">📚</div>
+  {% endif %}
+  <div class="manga-card-body">
+    <div class="manga-card-title">{{ m.name }}</div>
+    <div class="manga-card-meta">
+      {{ m.chapters }} ch{% if m.extras %} · <span style="color:var(--muted);opacity:0.7">+{{ m.extras }} extra{% if m.extras != 1 %}s{% endif %}</span>{% endif %}
+    </div>
+  </div>
+  {% if m.status %}
+  <div class="manga-card-badge">
+    <span class="pill pill-{{ m.status }}">{{ m.status }}</span>
+  </div>
+  {% endif %}
+  {% if m.progress %}
+  <div class="manga-card-progress">
+    <div class="manga-card-progress-fill"
+         style="width:{{ ((m.progress.page / (m.progress.total_pages or 1)) * 100)|int }}%"></div>
+  </div>
+  {% endif %}
+</a>
+{% endmacro %}
+
+{% macro manga_card_h(m) %}
+<a class="manga-card" href="{{ url_for('manga_detail', manga=m.name) }}" style="flex:0 0 155px">
+  {% if m.cover %}
+  <img class="manga-card-img" src="{{ m.cover }}" loading="lazy" alt="{{ m.name }}">
+  {% else %}
+  <div class="manga-card-img-placeholder">📚</div>
+  {% endif %}
+  <div class="manga-card-body">
+    <div class="manga-card-title">{{ m.name }}</div>
+    <div class="manga-card-meta">
+      {{ m.chapters }} ch{% if m.extras %} · <span style="opacity:0.7">+{{ m.extras }} extra{% if m.extras != 1 %}s{% endif %}</span>{% endif %}
+    </div>
+  </div>
+</a>
+{% endmacro %}
+
+<div class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="hero-title">YOUR <span>MANGA</span> LIBRARY</div>
+      <div class="hero-sub">All your manga, any device on your home network.</div>
+    </div>
+    <div class="hero-stats">
+      <div>
+        <div class="stat-val">{{ mangas|length }}</div>
+        <div class="stat-label">Titles</div>
+      </div>
+      <div>
+        <div class="stat-val">{{ recent|length }}</div>
+        <div class="stat-label">Recent</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-wrap">
+
+  {% if query %}
+  <!-- ── Search results ── -->
+  <div class="section">
+    <div class="section-title">Search: "{{ query }}"</div>
+    {% if mangas %}
+    <div class="manga-grid">
+      {% for m in mangas %}{{ manga_card(m) }}{% endfor %}
+    </div>
+    {% else %}
+    <div class="empty"><big>¯\_(ツ)_/¯</big>No manga found for "{{ query }}"</div>
+    {% endif %}
+  </div>
+
+  {% else %}
+
+  <!-- ── Recently read ── -->
+  {% if recent %}
+  <div class="section">
+    <div class="section-title">Continue Reading</div>
+    <div class="scroll-row">
+      {% for r in recent %}
+      {% set cover = namespace(url=none) %}
+      {% for m in mangas if m.name == r.manga %}{% set cover.url = m.cover %}{% endfor %}
+      <a class="manga-card" href="{{ url_for('reader', manga=r.manga, chapter=r.chapter) }}" style="flex:0 0 155px">
+        {% if cover.url %}
+        <img class="manga-card-img" src="{{ cover.url }}" loading="lazy" alt="{{ r.manga }}">
+        {% else %}
+        <div class="manga-card-img-placeholder">📖</div>
+        {% endif %}
+        <div class="manga-card-body">
+          <div class="manga-card-title">{{ r.manga }}</div>
+          <div class="manga-card-meta">{{ r.chapter }} · p.{{ r.page }}</div>
+        </div>
+        {% if r.total_pages %}
+        <div class="manga-card-progress">
+          <div class="manga-card-progress-fill" style="width:{{ ((r.page / r.total_pages) * 100)|int }}%"></div>
+        </div>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Daily recommended ── -->
+  <div class="section">
+    <div class="section-title">Recommended Today</div>
+    <div class="scroll-row">
+      {% for m in recommended %}{{ manga_card_h(m) }}{% endfor %}
+    </div>
+  </div>
+
+  <!-- ── All manga ── -->
+  <div class="section">
+    <div class="section-title">All Manga</div>
+    {% if mangas %}
+    <div class="manga-grid">
+      {% for m in mangas %}{{ manga_card(m) }}{% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <big>📭</big>
+      No manga found in <code>mangas/</code> folder.
+    </div>
+    {% endif %}
+  </div>
+
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='logo.png') }}">
+  <title>{% block title %}Your_Name{% endblock %}</title>
+  <meta name="theme-color" content="#a855f7">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #111118;
+      --card:      #17171f;
+      --border:    #2a2a38;
+      --red:       #e8203a;
+      --red-dim:   #9b1528;
+      --text:      #f0f0f8;
+      --muted:     #6b6b88;
+      --accent:    #ff4d6a;
+      --gold:      #f5c842;
+      --font-head: 'Bebas Neue', sans-serif;
+      --font-body: 'Outfit', sans-serif;
+      --radius:    12px;
+    }
+
+    html { font-size: 16px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,10,15,0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 2rem;
+      height: 60px;
+      gap: 2rem;
+    }
+    .nav-logo {
+      font-family: var(--font-head);
+      font-size: 1.7rem;
+      color: var(--red);
+      letter-spacing: 2px;
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .nav-logo span { color: var(--text); }
+    .nav-links {
+      display: flex; align-items: center; gap: 0.25rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--text);
+      background: var(--surface);
+    }
+    .nav-spacer { flex: 1; }
+    .nav-search {
+      display: flex; align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 0.75rem;
+      gap: 0.5rem;
+      transition: border-color 0.2s;
+    }
+    .nav-search:focus-within { border-color: var(--red-dim); }
+    .nav-search input {
+      background: none; border: none; outline: none;
+      color: var(--text); font-family: var(--font-body);
+      font-size: 0.85rem; padding: 0.45rem 0;
+      width: 200px;
+    }
+    .nav-search input::placeholder { color: var(--muted); }
+    .nav-search svg { color: var(--muted); flex-shrink: 0; }
+    .btn-logout {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); font-family: var(--font-body);
+      font-size: 0.8rem; padding: 0.35rem 0.85rem;
+      border-radius: 6px; cursor: pointer;
+      transition: all 0.2s; text-decoration: none;
+    }
+    .btn-logout:hover { border-color: var(--red-dim); color: var(--red); }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--red-dim); }
+
+    /* ── UTILITIES ── */
+    .page-wrap { max-width: 1400px; margin: 0 auto; padding: 2rem 2rem; }
+    .section-title {
+      font-family: var(--font-head);
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+      color: var(--text);
+      margin-bottom: 1.25rem;
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1; height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+    .pill {
+      display: inline-flex; align-items: center;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+      font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .pill-reading  { background: rgba(232,32,58,0.2); color: var(--red); }
+    .pill-completed{ background: rgba(245,200,66,0.2); color: var(--gold); }
+    .pill-plan     { background: rgba(107,107,136,0.2); color: var(--muted); }
+
+    /* ── MANGA CARD ── */
+    .manga-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      text-decoration: none;
+      display: block;
+      position: relative;
+    }
+    .manga-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--red-dim);
+      box-shadow: 0 12px 40px rgba(232,32,58,0.15);
+    }
+    .manga-card-img {
+      width: 100%; aspect-ratio: 2/3;
+      object-fit: cover;
+      background: var(--surface);
+      display: block;
+    }
+    .manga-card-img-placeholder {
+      width: 100%; aspect-ratio: 2/3;
+      background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-head);
+      font-size: 3rem; color: var(--border);
+    }
+    .manga-card-body {
+      padding: 0.75rem;
+    }
+    .manga-card-title {
+      font-size: 0.85rem; font-weight: 600;
+      color: var(--text); line-height: 1.3;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .manga-card-meta {
+      font-size: 0.72rem; color: var(--muted);
+      margin-top: 0.25rem;
+    }
+    .manga-card-progress {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 3px; background: var(--border);
+    }
+    .manga-card-progress-fill {
+      height: 100%; background: var(--red);
+      transition: width 0.3s;
+    }
+    .manga-card-badge {
+      position: absolute; top: 0.5rem; right: 0.5rem;
+    }
+
+    /* ── GRID ── */
+    .manga-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+      gap: 1.25rem;
+    }
+
+    /* ── HORIZONTAL SCROLL ROW ── */
+    .scroll-row {
+      display: flex; gap: 1rem;
+      overflow-x: auto; padding-bottom: 0.5rem;
+      scrollbar-width: thin;
+    }
+    .scroll-row .manga-card { flex: 0 0 155px; }
+
+    /* ── MOBILE RESPONSIVE ── */
+    @media (max-width: 600px) {
+      html { font-size: 15px; }
+
+      /* Nav — compact mobile bar */
+      nav {
+        padding: 0 0.85rem;
+        height: auto;
+        min-height: 52px;
+        flex-wrap: wrap;
+        gap: 0;
+        row-gap: 0;
+      }
+      .nav-logo { font-size: 1.35rem; padding: 0.6rem 0; }
+
+      /* Nav links: horizontal scroll strip below logo row */
+      .nav-links {
+        order: 3;
+        width: 100%;
+        overflow-x: auto;
+        white-space: nowrap;
+        flex-wrap: nowrap;
+        padding: 0.2rem 0 0.45rem;
+        gap: 0.1rem;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      .nav-links::-webkit-scrollbar { display: none; }
+      .nav-links a {
+        font-size: 0.78rem;
+        padding: 0.3rem 0.65rem;
+      }
+
+      /* Search: share row with sign-out button */
+      .nav-spacer { display: none; }
+      .nav-search {
+        order: 2;
+        flex: 1;
+        margin: 0.35rem 0.4rem 0.35rem 0.75rem;
+        min-width: 0;
+      }
+      .nav-search input { width: 100%; font-size: 0.82rem; }
+
+      .btn-logout {
+        order: 2;
+        font-size: 0.75rem;
+        padding: 0.3rem 0.6rem;
+        margin: 0.35rem 0;
+        white-space: nowrap;
+      }
+
+      /* Page padding */
+      .page-wrap { padding: 1.2rem 0.85rem; }
+
+      /* Grid: 2 columns on phone */
+      .manga-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+      }
+
+      /* Scroll row: smaller cards */
+      .scroll-row { gap: 0.65rem; }
+      .scroll-row .manga-card { flex: 0 0 130px; }
+
+      /* Cards */
+      .manga-card-body { padding: 0.55rem 0.6rem; }
+      .manga-card-title { font-size: 0.8rem; }
+      .manga-card-meta  { font-size: 0.67rem; }
+
+      /* Section title */
+      .section-title { font-size: 1.2rem; margin-bottom: 0.9rem; }
+    }
+
+    @media (max-width: 380px) {
+      .manga-grid { grid-template-columns: repeat(2, 1fr); gap: 0.6rem; }
+      .scroll-row .manga-card { flex: 0 0 115px; }
+    }
+
+    {% block extra_styles %}{% endblock %}
+  </style>
+</head>
+<body>
+
+{% if session.logged_in %}
+<nav>
+  <a class="nav-logo" href="{{ url_for('index') }}">YOUR<span>NAME</span></a>
+  <ul class="nav-links">
+    <li><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Home</a></li>
+    <li><a href="{{ url_for('recent') }}" {% if request.endpoint == 'recent' %}class="active"{% endif %}>Recent</a></li>
+    <li><a href="{{ url_for('reading_list') }}" {% if request.endpoint == 'reading_list' %}class="active"{% endif %}>My List</a></li>
+  </ul>
+  <div class="nav-spacer"></div>
+  <form class="nav-search" action="{{ url_for('index') }}" method="GET">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input type="text" name="q" placeholder="Search manga…" value="{{ request.args.get('q','') }}">
+  </form>
+  <a class="btn-logout" href="{{ url_for('logout') }}">Sign out</a>
+</nav>
+{% endif %}
+
+{% block content %}{% endblock %}
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>
