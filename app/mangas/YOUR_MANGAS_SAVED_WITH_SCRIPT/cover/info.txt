@@ -1,0 +1,2 @@
+This is where you put your description of the manga so that you can see it inside the view manga.
+Now you have to do that yourself but i am working on it to make it that the script auto does it but it is kinda hard.
