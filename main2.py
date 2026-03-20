@@ -51,9 +51,7 @@ def _detect_chromium() -> tuple[str, str]:
         "/usr/bin/chromium-browser",
         "/usr/bin/chromium",
         "/snap/bin/chromium",
-        # Default MacOS
         "/Applications/Chromium.app/Contents/MacOS/Chromium",
-        # Windows normal dirs if it is in an other path please add it.
         r"C:\Program Files\Chromium\Application\chrome.exe",
         r"C:\Program Files (x86)\Chromium\Application\chrome.exe",
     ]
@@ -190,12 +188,10 @@ def enable_network_logging(page: ChromiumPage):
         pass
 
 INTERCEPT_JS = """
-// Inject once — wraps fetch() and XHR to log all responses
 if (!window.__mf_hooked) {
     window.__mf_hooked = true;
     window.__mf_log = [];
 
-    // Hook fetch
     const _fetch = window.fetch;
     window.fetch = function() {
         const url = (arguments[0] && arguments[0].url) ? arguments[0].url : String(arguments[0]);
@@ -207,7 +203,6 @@ if (!window.__mf_hooked) {
         });
     };
 
-    // Hook XHR
     const _open = XMLHttpRequest.prototype.open;
     const _send = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function(m, u) {
@@ -362,6 +357,382 @@ def get_chapter_list(page: ChromiumPage, slug: str) -> list:
         chapters.discard(0.0)
 
     return sorted(chapters)
+
+def _find_desc_in_json(data, depth=0) -> str:
+    if depth > 10:
+        return ""
+    best = ""
+    DESC_KEYS = {"description", "synopsis", "summary", "plot", "about", "overview", "desc", "excerpt"}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if k.lower() in DESC_KEYS and isinstance(v, str) and len(v) > len(best):
+                best = v
+            sub = _find_desc_in_json(v, depth + 1)
+            if len(sub) > len(best):
+                best = sub
+    elif isinstance(data, list):
+        for x in data:
+            sub = _find_desc_in_json(x, depth + 1)
+            if len(sub) > len(best):
+                best = sub
+    return best
+
+def _unescape_html(s: str) -> str:
+    return (s.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+             .replace('&quot;', '"').replace('&#039;', "'").replace('&nbsp;', ' '))
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  DESCRIPTION STRATEGIES  — swap them in get_manga_info() below
+#  Set DESCRIPTION_STRATEGY = "A" / "B" / "C" / "D" / "E" to pick one.
+#  Each strategy returns the full description string, or "" on failure.
+# ══════════════════════════════════════════════════════════════════════════════
+
+DESCRIPTION_STRATEGY = "E"
+
+def _click_read_more(page: ChromiumPage) -> str:
+    """Click the 'read more' button. Returns a status string for logging."""
+    try:
+        result = page.run_js("""
+            var tags = ['a','button','span','div','p','i','b','strong'];
+            for (var t = 0; t < tags.length; t++) {
+                var els = document.querySelectorAll(tags[t]);
+                for (var i = 0; i < els.length; i++) {
+                    var raw = (els[i].textContent || '').replace(/\\s+/g,' ').trim().toLowerCase();
+                    if (raw === 'read more' || raw === 'read more +' || raw === 'read more+'
+                            || raw === 'show more' || raw === '+ read more'
+                            || (raw.startsWith('read more') && raw.length < 20)) {
+                        els[i].click();
+                        return 'clicked:' + els[i].tagName + '/' + (els[i].className||'') + ' text=' + raw;
+                    }
+                }
+            }
+            return 'not_found';
+        """) or "not_found"
+        return result
+    except Exception as e:
+        return f"error:{e}"
+
+
+# ── Strategy A: fingerprint match (DEFAULT) ───────────────────────────────────
+# Captures the FULL truncated text first (so we know its exact length),
+# clicks read more, then finds an element that:
+#   • contains the start of the truncated text (fingerprint)
+#   • is STRICTLY LONGER than the full truncated text
+#   • does NOT end with "..."
+# This makes it impossible to accidentally return the truncated version itself.
+def _desc_strategy_A(page: ChromiumPage) -> str:
+    # Step 1 — find the truncated description element specifically:
+    #   • must end with "..." (CSS line-clamp cutoff)
+    #   • must not look like a title (no colons at start, not all-caps, etc.)
+    #   • UI noise words must not dominate the text
+    full_truncated = ""
+    try:
+        full_truncated = page.run_js("""
+            var UI_NOISE = ['start reading','read now','bookmark','add to list',
+                            'sign in','log in','register','send request','more information'];
+            function hasNoise(t) {
+                var low = t.toLowerCase();
+                var hits = 0;
+                for (var n = 0; n < UI_NOISE.length; n++) {
+                    if (low.indexOf(UI_NOISE[n]) !== -1) hits++;
+                }
+                return hits >= 2;
+            }
+            // Walk every element, pick the one that ends with "..." and looks like prose
+            var best = '';
+            var all = document.querySelectorAll('*');
+            for (var i = 0; i < all.length; i++) {
+                var el = all[i];
+                if (el.children.length > 3) continue;
+                var t = (el.textContent||'').replace(/\\s+/g,' ').trim();
+                // Must end with the ellipsis the site appends when truncating
+                if (t.slice(-3) !== '...' && t.slice(-1) !== '…') continue;
+                if (t.length < 40 || t.length > 800) continue;
+                if (hasNoise(t)) continue;
+                // Prefer longer (more complete) truncated text
+                if (t.length > best.length) best = t;
+            }
+            return best || '';
+        """) or ""
+    except Exception:
+        pass
+
+    if not full_truncated:
+        return ""
+
+    trunc_len   = len(full_truncated)
+    # Use first 40 chars as fingerprint — enough to be unique, short enough to be safe
+    fingerprint = full_truncated[:40].replace("'", "\\'").replace("\\", "\\\\")
+    print(f"   [A] Truncated text ({trunc_len} chars): '{full_truncated[:80]}'")
+
+    # Step 2 — click read more
+    status = _click_read_more(page)
+    print(f"   [A] Click result: {status}")
+    time.sleep(3)
+
+    # Step 3 — find element whose text STARTS WITH the fingerprint and is longer
+    # "starts with" is the key: the popup starts directly with the description.
+    # Page containers have titles/buttons before the description, so they won't match.
+    try:
+        result = page.run_js(f"""
+            var fp = '{fingerprint}';
+            var minLen = {trunc_len + 1};
+            var best = null;
+            var UI_NOISE = ['start reading','read now','bookmark','add to list',
+                            'sign in','log in','register','send request'];
+            var all = document.querySelectorAll('*');
+            for (var i = 0; i < all.length; i++) {{
+                var el = all[i];
+                var cs = window.getComputedStyle(el);
+                if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+                var t = (el.textContent||'').replace(/\\s+/g,' ').trim();
+                // MUST start with the fingerprint — not just contain it
+                if (t.indexOf(fp) !== 0) continue;
+                if (t.length < minLen || t.length > 5000) continue;
+                // Reject if still truncated
+                if (t.slice(-3) === '...' || t.slice(-1) === '…') continue;
+                // Reject UI noise
+                var low = t.toLowerCase();
+                var noisy = false;
+                for (var n = 0; n < UI_NOISE.length; n++) {{
+                    if (low.indexOf(UI_NOISE[n]) !== -1) {{ noisy = true; break; }}
+                }}
+                if (noisy) continue;
+                // Take the shortest matching element (avoids grabbing parent wrappers)
+                if (best === null || t.length < best.length) best = t;
+            }}
+            return best;
+        """)
+        if result:
+            print(f"   [A] Hit ({len(result)} chars): {result[:120]}...")
+            return result.strip()
+    except Exception as e:
+        print(f"   [A] Error: {e}")
+    return ""
+
+
+# ── Strategy B: DOM snapshot diff ────────────────────────────────────────────
+# Takes a snapshot of all text blocks before clicking, then after clicking
+# finds any NEW text blocks that appeared — those must be the popup content.
+def _desc_strategy_B(page: ChromiumPage) -> str:
+    # Snapshot before click
+    try:
+        before_texts = set(page.run_js("""
+            var out = [];
+            var els = document.querySelectorAll('p, span, div, section, article');
+            for (var i = 0; i < els.length; i++) {
+                var t = (els[i].textContent||'').replace(/\\s+/g,' ').trim();
+                if (t.length >= 60) out.push(t);
+            }
+            return out;
+        """) or [])
+    except Exception:
+        before_texts = set()
+
+    status = _click_read_more(page)
+    print(f"   [B] Click result: {status}")
+    time.sleep(3)
+
+    # Find new text blocks that weren't there before
+    try:
+        after_texts = page.run_js("""
+            var out = [];
+            var els = document.querySelectorAll('p, span, div, section, article');
+            for (var i = 0; i < els.length; i++) {
+                var cs = window.getComputedStyle(els[i]);
+                if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+                var t = (els[i].textContent||'').replace(/\\s+/g,' ').trim();
+                if (t.length >= 60 && t.length <= 3000) out.push(t);
+            }
+            return out;
+        """) or []
+        for t in after_texts:
+            if t not in before_texts and t.slice(-3) != '...' if hasattr(t, 'slice') else t[-3:] != '...':
+                print(f"   [B] New text found ({len(t)} chars): {t[:120]}...")
+                return t.strip()
+    except Exception as e:
+        print(f"   [B] Error: {e}")
+    return ""
+
+
+# ── Strategy C: data-attribute scan ──────────────────────────────────────────
+# MangaFire often stores the full description in a data-* attribute on the
+# read-more button or a nearby element. This checks for that before any click.
+def _desc_strategy_C(page: ChromiumPage) -> str:
+    try:
+        result = page.run_js("""
+            var all = document.querySelectorAll('*');
+            var best = '';
+            for (var i = 0; i < all.length; i++) {
+                var el = all[i];
+                for (var a = 0; a < el.attributes.length; a++) {
+                    var name = el.attributes[a].name.toLowerCase();
+                    var val  = el.attributes[a].value || '';
+                    if ((name.startsWith('data-') || name === 'title' || name === 'content')
+                            && val.length > 80 && val.length < 5000
+                            && !val.startsWith('http') && val.indexOf(' ') !== -1) {
+                        if (val.length > best.length) best = val;
+                    }
+                }
+            }
+            return best || null;
+        """)
+        if result and len(result) > 80:
+            # Reject login/UI noise
+            noise = ['sign in', 'log in', 'register', 'forgot password', 'send request']
+            low = result.lower()
+            if not any(w in low for w in noise):
+                print(f"   [C] Data-attr hit ({len(result)} chars): {result[:120]}...")
+                return result.strip()
+    except Exception as e:
+        print(f"   [C] Error: {e}")
+    return ""
+
+
+# ── Strategy D: raw HTML / JSON-LD / script tag scan ─────────────────────────
+# Parses the raw page HTML for description text inside JSON-LD blocks,
+# meta tags, or inline script variables — never looks at rendered DOM.
+def _desc_strategy_D(page: ChromiumPage) -> str:
+    try:
+        html = page.html or ""
+    except Exception:
+        return ""
+
+    # JSON-LD
+    for block in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html, re.S | re.I):
+        try:
+            data = json.loads(block.group(1))
+            for key in ('description', 'abstract', 'about'):
+                val = data.get(key, "")
+                if isinstance(val, str) and len(val) > 80:
+                    print(f"   [D] JSON-LD hit ({len(val)} chars): {val[:120]}...")
+                    return _unescape_html(val).strip()
+        except Exception:
+            pass
+
+    # Inline JS variable assignments like: description: "...", 'description': '...'
+    for m in re.finditer(
+        r'["\']?(?:description|synopsis|summary|overview)["\']?\s*:\s*["\']([^"\']{80,})["\']',
+        html, re.I
+    ):
+        val = _unescape_html(m.group(1).replace('\\n', '\n').replace('\\"', '"')).strip()
+        if len(val) > 80 and val[-3:] != '...':
+            print(f"   [D] Inline JS hit ({len(val)} chars): {val[:120]}...")
+            return val
+
+    # og:description / meta description
+    for pattern in [
+        r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\'](.*?)["\']',
+        r'<meta[^>]+content=["\'](.*?)["\'][^>]+property=["\']og:description["\']',
+        r'<meta[^>]+name=["\']description["\'][^>]+content=["\'](.*?)["\']',
+    ]:
+        m = re.search(pattern, html, re.I | re.S)
+        if m:
+            val = _unescape_html(m.group(1).strip())
+            if len(val) >= 80:
+                print(f"   [D] Meta tag hit ({len(val)} chars): {val[:120]}...")
+                return val
+    return ""
+
+
+# ── Strategy E: AJAX network log ─────────────────────────────────────────────
+# Looks through intercepted XHR/fetch responses for a description field.
+# Works best if the page loads description data via an API call.
+def _desc_strategy_E(page: ChromiumPage) -> str:
+    try:
+        log = get_log(page)
+    except Exception:
+        return ""
+    best = ""
+    for entry in (log if isinstance(log, list) else []):
+        body = entry.get("body", "") if isinstance(entry, dict) else ""
+        if not body or len(body) < 80:
+            continue
+        try:
+            data = json.loads(body)
+            found = _find_desc_in_json(data)
+            if found and len(found) > len(best):
+                best = found.strip()
+        except Exception:
+            pass
+        for m in re.finditer(
+            r'"(?:description|synopsis|summary|overview|about|plot|excerpt)"\s*:\s*"((?:[^"\\]|\\.){80,})"',
+            body, re.I
+        ):
+            val = m.group(1).replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\').strip()
+            if len(val) > len(best):
+                best = val
+    if best:
+        print(f"   [E] AJAX hit ({len(best)} chars): {best[:120]}...")
+    return best
+
+
+def get_manga_info(page: ChromiumPage) -> tuple:
+    cover_url = ""
+    description = ""
+
+    try:
+        cover_url = page.run_js("""
+            var sel = ['.poster img', '.manga-poster img', '.cover img', '.manga-cover img',
+                       '[class*="poster"] img', '[class*="cover"] img', 'img[class*="cover"]',
+                       'img[class*="poster"]'];
+            for (var i = 0; i < sel.length; i++) {
+                var el = document.querySelector(sel[i]);
+                if (el) {
+                    var src = el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('data-original') || '';
+                    if (src && src.length > 5) return src.startsWith('http') ? src : 'https://mangafire.to' + src;
+                }
+            }
+            return '';
+        """) or ""
+    except Exception:
+        pass
+
+    # Try the selected strategy first, then fall through the others as backups.
+    # Change DESCRIPTION_STRATEGY at the top of this section to pick a different one.
+    strategy_order = {
+        "A": [_desc_strategy_A, _desc_strategy_C, _desc_strategy_D, _desc_strategy_E, _desc_strategy_B],
+        "B": [_desc_strategy_B, _desc_strategy_A, _desc_strategy_C, _desc_strategy_D, _desc_strategy_E],
+        "C": [_desc_strategy_C, _desc_strategy_A, _desc_strategy_D, _desc_strategy_E, _desc_strategy_B],
+        "D": [_desc_strategy_D, _desc_strategy_A, _desc_strategy_C, _desc_strategy_E, _desc_strategy_B],
+        "E": [_desc_strategy_E, _desc_strategy_A, _desc_strategy_C, _desc_strategy_D, _desc_strategy_B],
+    }
+    strategies = strategy_order.get(DESCRIPTION_STRATEGY,
+                                    strategy_order["A"])
+
+    for fn in strategies:
+        try:
+            result = fn(page)
+            if result and len(result) > 40:
+                description = result
+                break
+        except Exception as e:
+            print(f"   Strategy {fn.__name__} crashed: {e}")
+
+    description = description.strip()
+    print(f"   Final description ({DESCRIPTION_STRATEGY}): {len(description)} chars")
+    return cover_url, description
+
+def save_cover_and_info(cover_url: str, description: str, manga_info_url: str,
+                        save_path: Path, session: requests.Session):
+    cover_dir = save_path / "Cover"
+    cover_dir.mkdir(parents=True, exist_ok=True)
+
+    if cover_url:
+        print(f"   Downloading cover image...")
+        ok = download_image(cover_url, cover_dir / "cover.jpg", session)
+        if ok:
+            print(f"   Cover saved → {cover_dir / 'cover.jpg'}")
+        else:
+            print(f"   Cover download failed.")
+
+    info_path = cover_dir / "info.txt"
+    if description:
+        info_path.write_text(description, encoding="utf-8")
+        print(f"   Info saved  → {info_path}  ({len(description)} chars)")
+    else:
+        info_path.write_text("", encoding="utf-8")
+        print(f"   ⚠️  Description was empty — info.txt written blank.")
 
 def get_chapter_images(page: ChromiumPage, url: str) -> list:
     clear_log(page)
@@ -566,6 +937,10 @@ def download_manga(cfg: dict, page: ChromiumPage, session: requests.Session,
     print("\n Discovering chapters...")
     chapters = get_chapter_list(page, slug)
 
+    cover_url, description = get_manga_info(page)
+    manga_info_url = f"https://mangafire.to/manga/{slug}"
+    save_cover_and_info(cover_url, description, manga_info_url, save_path, session)
+
     if not chapters:
         start    = parse_chapter_number(url)
         chapters = [start]
@@ -682,7 +1057,6 @@ def main():
     else:
         print("✅ No failed chapters — no notsaved.txt needed.\n")
 
-    # baked in shutdown, you can remove it if you want or add the macOS
     print("    All done. Shutting down in 15 seconds...")
     print("   (Close this window or press Ctrl+C to cancel shutdown)\n")
     try:
@@ -693,7 +1067,7 @@ def main():
 
     if sys.platform.startswith("win"):
         os.system("shutdown /s /t 0")
-    else:  # Linux
+    else:
         os.system("shutdown -h now")
 
 
